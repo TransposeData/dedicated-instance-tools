@@ -13,7 +13,14 @@ db = DedicatedInstance(
     password=os.environ.get("PASSWORD"),
     database=os.environ.get("DATABASE"),
     sslmode=os.environ.get("SSLMODE"),
-    debug=True,
+    debug=False,
 )
 
-db.sync.run(print, "ethereum.nft_sales", 1000)
+
+def proccess_rows(rows: list[dict]) -> None:
+    # just print the rows
+    # print(rows)
+    pass
+
+
+db.sync.run(proccess_rows, "ethereum.native_token_transfers", 10_000)

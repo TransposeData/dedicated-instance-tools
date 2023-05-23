@@ -33,9 +33,5 @@ setup(
     # Find all packages in the directory
     packages=find_packages(exclude=["tests", "demo", "docs"]),
     # required dependencies
-    install_requires=[
-        "psycopg2",
-        "requests",
-        "python-dotenv",
-    ],
+    install_requires=["psycopg2", "requests", "python-dotenv", "python-dateutil"],
 )

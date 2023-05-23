@@ -1,21 +1,30 @@
 TRANSFER_TABLE_PAGINATED_QUERY = """
     SELECT *
-    FROM ethereum.token_transfers
+    FROM {}
     WHERE activity_id > %s
     ORDER BY activity_id ASC
     LIMIT %s;
 """
 
 OWNER_TABLE_PAGINATED_QUERY = """
-SELECT DISTINCT(ethereum.token_owners.*)
-FROM ethereum.token_owners
-JOIN LATERAL (
-    SELECT from_address, to_address
-    FROM ethereum.token_transfers
+SELECT DISTINCT(owners.*), transfers.activity_id
+FROM {} AS owners
+JOIN (
+    SELECT from_address, to_address, activity_id
+    FROM {}
     WHERE activity_id > %s
     ORDER BY activity_id ASC
     LIMIT %s
-) AS incremental_transfers
-ON ethereum.token_owners.owner_address = incremental_transfers.from_address
-OR ethereum.token_owners.owner_address = incremental_transfers.to_address;
+) AS transfers
+ON owners.owner_address = transfers.from_address
+OR owners.owner_address = transfers.to_address;
+
+"""
+
+INDEXER_TABLE_PAGINATED_QUERY = """
+SELECT *
+FROM {}
+WHERE (__indexer_id = %s AND __block_number >= %s)
+ORDER BY __indexer_id, __block_number ASC
+LIMIT %s;
 """

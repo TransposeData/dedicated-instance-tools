@@ -1,17 +1,24 @@
 import sys
+import time
+from datetime import datetime
 from typing import Callable
 
 from transpose.common.constants import (
+    INDEXER_TABLE_PAGINATED_QUERY,
     OWNER_TABLE_PAGINATED_QUERY,
     TRANSFER_TABLE_PAGINATED_QUERY,
 )
 from transpose.common.exceptions import InvalidSyncTableError
+from transpose.util.io import load_json_from_file, write_json_to_file
+from transpose.util.log import get_logger
+from transpose.util.threading import TaskPool
+from transpose.util.time import estimate_eta
 
 
 class SyncClient:
     def __init__(self, base_class) -> None:
         self.super = base_class
-        self.logger = self.super.logger
+        self.logger = get_logger("SYNC", self.super.debug)
         self.metadata: dict = {}
 
     def run(
@@ -42,6 +49,22 @@ class SyncClient:
                 callable(rows)
             except KeyboardInterrupt:
                 sys.exit()
+
+    def save_metadata(self, path: str = "metadata.json") -> None:
+        """
+        Saves the current metadata to the given path.
+
+        :param path: The path to save the metadata to.
+        """
+        write_json_to_file(self.metadata, path)
+
+    def load_metadata(self, path: str = "metadata.json") -> None:
+        """
+        Loads the metadata from the given path.
+
+        :param path: The path to load the metadata from.
+        """
+        self.metadata = load_json_from_file(path)
 
     def _classify_table(self, table: str) -> str:
         """
@@ -86,14 +109,48 @@ class SyncClient:
         :return: A list of `_indexer_id`s.
         """
 
-        print("SELECT DISTINCT(__indexer_id) FROM {};".format(table))
-
         return [
             str(row["__indexer_id"])
             for row in self.super._execute(
                 "SELECT DISTINCT(__indexer_id) FROM {};".format(table)
             )
         ]
+
+    def __pull_indexer_batch(
+        self, table: str, batch_size: int, indexer_id: str, progress: int
+    ) -> list[dict]:
+        """
+        Pulls a batch of rows from an indexer table on the dedicated instance.
+
+        :param table: The table to pull rows from.
+        :param batch_size: The number of rows to pull.
+        :param indexer_id: The indexer id to pull rows for.
+        :param progress: The offset to start pulling rows from.
+        :return: A list of rows.
+        """
+        indexer_rows = self.super._execute(
+            INDEXER_TABLE_PAGINATED_QUERY.format(table),
+            (indexer_id, progress, batch_size),
+        )
+
+        # get the highest block number from the rows
+        highest_block_number = max([row["__block_number"] for row in indexer_rows])
+
+        # remove rows with the highest block number. this is to prevent duplicate rows from being pulled
+        indexer_rows = [
+            row for row in indexer_rows if row["__block_number"] < highest_block_number
+        ]
+
+        # now, update the progress
+        self.metadata["indexer_ids"][indexer_id] = highest_block_number
+
+        self.logger.debug(
+            "{} | Progress {}".format(
+                indexer_id, self.metadata["indexer_ids"][indexer_id]
+            )
+        )
+
+        return indexer_rows
 
     def __pull_batch(self, table: str, batch_size: int) -> list[dict]:
         """
@@ -112,46 +169,92 @@ class SyncClient:
             offset = self.metadata.get(classification, 0)
 
             # fetch the rows
+            batch_process_begin_time = time.perf_counter()
             rows = self.super._execute(
-                TRANSFER_TABLE_PAGINATED_QUERY, (offset, batch_size)
+                TRANSFER_TABLE_PAGINATED_QUERY.format(table), (offset, batch_size)
             )
 
             # update the metadata
-            self.metadata[classification] = offset + batch_size
+            maximum_activity_id = max([row["activity_id"] for row in rows])
+            self.metadata[classification] = maximum_activity_id
 
-            return rows
+            self.logger.info(
+                "{} | {:,.0f} Rows synced in {:.2f}s | Progress {}".format(
+                    table,
+                    len(rows),
+                    time.perf_counter() - batch_process_begin_time,
+                    maximum_activity_id,
+                )
+            )
+
+            return [dict(row) for row in rows]
 
         elif classification == "owner":
             # if the table is a transfer table, we can simply paginate by `activity_id`
             offset = self.metadata.get(classification, 0)
 
             # fetch the rows
+            batch_process_begin_time = time.perf_counter()
             rows = self.super._execute(
-                OWNER_TABLE_PAGINATED_QUERY, (offset, batch_size)
+                OWNER_TABLE_PAGINATED_QUERY.format(
+                    table, table.replace("_owners", "_transfers")
+                ),
+                (offset, batch_size),
             )
 
             # update the metadata
-            self.metadata[classification] = offset + batch_size
+            maximum_activity_id = max([row["activity_id"] for row in rows])
+            self.metadata[classification] = maximum_activity_id
 
-            return rows
+            self.logger.info(
+                "{} | {:,.0f} Rows synced in {:.2f}s | Progress {}".format(
+                    table,
+                    len(rows),
+                    time.perf_counter() - batch_process_begin_time,
+                    maximum_activity_id,
+                )
+            )
+
+            return [dict(row) for row in rows]
 
         elif classification == "indexer":
-            print(1)
-
             # get a list of indexer ids from the table. this is slow, so we only do it once every 100 batches
             if (
                 self.metadata.get("indexer_ids", None) is None
                 or self.metadata.get("batches_till_sync", 100) == 0
             ):
-                print(2)
-                self.metadata["indexer_ids"] = self.__fetch_indexer_ids(table)
+                self.logger.info(f"Fetching new ({table}) indexers from postgres")
+                self.metadata["indexer_ids"] = {
+                    indexer_id: self.metadata.get("indexer_ids", {}).get(indexer_id, 0)
+                    for indexer_id in self.__fetch_indexer_ids(table)
+                }
                 self.metadata["batches_till_sync"] = 100
-
-                print(self.metadata)
 
             # decrement the batches till sync
             self.metadata["batches_till_sync"] -= 1
 
-            print("running")
+            # Create a multiprocessing pool
+            batch_process_begin_time = time.perf_counter()
+            begin_time = datetime.now()
+            pool = TaskPool(
+                num_workers=min(32, len(self.metadata["indexer_ids"])), use_threads=True
+            )
+            targets = [
+                (table, batch_size, indexer_id, progress)
+                for indexer_id, progress in self.metadata["indexer_ids"].items()
+            ]
+            results = pool.run(self.__pull_indexer_batch, targets)
+            processed_rows = [dict(row) for result in results for row in result]
 
-            return
+            self.logger.info(
+                "{} | {:,.0f} Rows synced in {:.2f}s | Refreshing indexers in {}".format(
+                    table,
+                    len(processed_rows),
+                    time.perf_counter() - batch_process_begin_time,
+                    estimate_eta(
+                        begin_time, 100 - self.metadata["batches_till_sync"], 100
+                    ),
+                )
+            )
+
+            return processed_rows
