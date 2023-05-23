@@ -4,10 +4,7 @@
 name: Deployment Tests
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -40,6 +37,8 @@ jobs:
         pip install pytest-cov==4.0.0
     - name: Test with pytest
       env:
-        API_KEY: ${{ secrets.API_KEY }}
+        HOST: ${{ secrets.HOST }}
+        USERNAME: ${{ secrets.USERNAME }}
+        PASSWORD: ${{ secrets.PASSWORD }}
       run: |
         pytest
