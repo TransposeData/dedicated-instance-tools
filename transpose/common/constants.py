@@ -22,7 +22,7 @@ FROM {} AS owners
 JOIN transfers
 ON owners.owner_address = transfers.from_address
 OR owners.owner_address = transfers.to_address
-GROUP BY owners.owner_address;
+GROUP BY 1, owners.owner_address;
 """
 
 INDEXER_TABLE_PAGINATED_QUERY = """
