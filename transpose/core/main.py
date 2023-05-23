@@ -52,7 +52,6 @@ class DedicatedInstance:
         try:
             with self.db.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, args)
-                self.db.commit()
                 return cursor.fetchall()
         except KeyboardInterrupt:
             sys.exit()
