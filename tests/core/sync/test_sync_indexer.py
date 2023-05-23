@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from transpose import (
+from transpose_dit import (
     DedicatedInstance,
     db_host,
     db_name,
@@ -9,7 +9,7 @@ from transpose import (
     db_sslmode,
     db_username,
 )
-from transpose.util.testing import (
+from transpose_dit.util.testing import (
     MULTI_SYNC_METADATA,
     NFT_SALES_METADATA,
     process_single_batch,

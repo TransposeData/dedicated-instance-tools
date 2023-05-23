@@ -14,7 +14,7 @@ pip install transpose-dit
 Then, connecting to your dedicated instance is as easy as
 
 ```python
-from transpose import DedicatedInstance
+from transpose_dit import DedicatedInstance
 
 db = DedicatedInstance(
     host=os.environ.get("HOST"),

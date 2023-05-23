@@ -12,4 +12,4 @@ db_name = os.environ.get("DATABASE")
 db_sslmode = os.environ.get("SSLMODE")
 
 # this file is important for nice imports
-from transpose.core.main import DedicatedInstance  # noqa
+from transpose_dit.core.main import DedicatedInstance  # noqa

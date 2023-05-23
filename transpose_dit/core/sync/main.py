@@ -4,16 +4,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Callable
 
-from transpose.common.constants import (
+from transpose_dit.common.constants import (
     INDEXER_TABLE_PAGINATED_QUERY,
     OWNER_TABLE_PAGINATED_QUERY,
     TRANSFER_TABLE_PAGINATED_QUERY,
 )
-from transpose.common.exceptions import InvalidSyncTableError
-from transpose.util.io import load_json_from_file, write_json_to_file
-from transpose.util.log import get_logger
-from transpose.util.threading import TaskPool
-from transpose.util.time import estimate_eta, to_iso
+from transpose_dit.common.exceptions import InvalidSyncTableError
+from transpose_dit.util.io import load_json_from_file, write_json_to_file
+from transpose_dit.util.log import get_logger
+from transpose_dit.util.threading import TaskPool
+from transpose_dit.util.time import estimate_eta, to_iso
 
 
 class SyncClient:

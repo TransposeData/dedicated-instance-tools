@@ -1,4 +1,4 @@
-from transpose import (
+from transpose_dit import (
     DedicatedInstance,
     db_host,
     db_name,

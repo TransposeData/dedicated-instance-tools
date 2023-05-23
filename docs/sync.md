@@ -9,7 +9,7 @@ The `DedicatedInstance::sync` class is the main entrypoint for this module. All 
 To begin a sync, simply call the `DedicatedInstance::sync::run` method, passing in the table you want to sync, and the callback function you want to use to handle the rows.
 
 ```python
-from transpose import DedicatedInstance
+from transpose_dit import DedicatedInstance
 
 db = DedicatedInstance(
     host=os.environ.get("HOST"),
@@ -53,7 +53,7 @@ The sync module automatically handles state management for you, with a few cavea
 For example, the following code will run a single batch, and then save the metadata to a file.
 
 ```python
-from transpose import DedicatedInstance
+from transpose_dit import DedicatedInstance
 
 db = DedicatedInstance(
     host=os.environ.get("HOST"),

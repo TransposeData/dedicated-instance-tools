@@ -4,8 +4,8 @@ import sys
 from psycopg2 import pool as psycopg2_pool
 from psycopg2.extras import RealDictCursor
 
-from transpose.common.exceptions import InstanceConnectionError
-from transpose.core.sync.main import SyncClient
+from transpose_dit.common.exceptions import InstanceConnectionError
+from transpose_dit.core.sync.main import SyncClient
 
 
 class DedicatedInstance:

@@ -1,4 +1,4 @@
-from transpose import (
+from transpose_dit import (
     DedicatedInstance,
     db_host,
     db_name,
@@ -7,7 +7,7 @@ from transpose import (
     db_sslmode,
     db_username,
 )
-from transpose.util.testing import process_single_batch
+from transpose_dit.util.testing import process_single_batch
 
 
 def test_sync_owners_nominal():

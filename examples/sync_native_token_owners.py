@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from transpose import DedicatedInstance
+from transpose_dit import DedicatedInstance
 
 load_dotenv()
 db = DedicatedInstance(

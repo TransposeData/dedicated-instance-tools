@@ -1,5 +1,5 @@
 [run]
-omit = transpose/util/*
+omit = transpose_dit/util/*
 relative_files = True
 
 [report]
