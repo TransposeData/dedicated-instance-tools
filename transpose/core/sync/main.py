@@ -36,7 +36,6 @@ class SyncClient:
         :param callable: The callable to pass rows to. This callable should accept a list of rows as it's only argument.
         :param table: The table to sync.
         :param batch_size: The number of rows to pull per batch.
-        :param limit: The maximum number of rows to pull.
         """
 
         # if metadata doesn't contain this table, add it
