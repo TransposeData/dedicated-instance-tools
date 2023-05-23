@@ -1,3 +1,5 @@
+import os
+
 from transpose import (
     DedicatedInstance,
     db_host,
@@ -10,7 +12,7 @@ from transpose import (
 from transpose.util.testing import process_single_batch
 
 
-def test_sync_transfers_nominal():
+def test_sync_save_metadata():
     db = DedicatedInstance(
         host=db_host,
         port=db_port,
@@ -22,9 +24,14 @@ def test_sync_transfers_nominal():
     assert isinstance(db, (DedicatedInstance,))
 
     db.sync.run(process_single_batch, "ethereum.token_transfers", 1000)
+    db.sync.save_metadata()
+
+    # assert metadata.json exists
+    assert os.path.exists("metadata.json")
+    os.remove("metadata.json")
 
 
-def test_sync_transfers_multiple():
+def test_sync_load_metadata():
     db = DedicatedInstance(
         host=db_host,
         port=db_port,
@@ -35,24 +42,13 @@ def test_sync_transfers_multiple():
     )
     assert isinstance(db, (DedicatedInstance,))
 
-    assert db.sync.metadata.get("ethereum.token_transfers", {}).get("transfer", 0) == 0
-    assert (
-        db.sync.metadata.get("ethereum.native_token_transfers", {}).get("transfer", 0)
-        == 0
-    )
-
     db.sync.run(process_single_batch, "ethereum.token_transfers", 1000)
-    db.sync.run(process_single_batch, "ethereum.native_token_transfers", 1000)
+    db.sync.save_metadata()
 
-    assert db.sync.metadata.get("ethereum.token_transfers", {}).get("transfer", 0) > 0
-    assert (
-        db.sync.metadata.get("ethereum.native_token_transfers", {}).get("transfer", 0)
-        > 0
-    )
+    # assert metadata.json exists
+    assert os.path.exists("metadata.json")
 
-
-def test_sync_transfers_norows():
-    db = DedicatedInstance(
+    db2 = DedicatedInstance(
         host=db_host,
         port=db_port,
         user=db_username,
@@ -60,9 +56,10 @@ def test_sync_transfers_norows():
         database=db_name,
         sslmode=db_sslmode,
     )
-    assert isinstance(db, (DedicatedInstance,))
+    assert isinstance(db2, (DedicatedInstance,))
+    db2.sync.load_metadata()
 
-    # set block number to a high value to ensure no rows are returned
-    db.sync.metadata["ethereum.token_transfers"] = {"transfer": 999_999_999}
+    os.remove("metadata.json")
 
-    db.sync.run(process_single_batch, "ethereum.token_transfers", 1000)
+    # assert the metadatas match
+    assert db.sync.metadata == db2.sync.metadata

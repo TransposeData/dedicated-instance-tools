@@ -20,7 +20,9 @@ db = DedicatedInstance(
 def proccess_rows(rows: list[dict]) -> None:
     # just print the rows
     # print(rows)
-    pass
+    return False
 
 
-db.sync.run(proccess_rows, "ethereum.native_token_transfers", 10_000)
+db.sync.run(proccess_rows, "ethereum.nft_sales", 10_000)
+
+db.sync.save_metadata()

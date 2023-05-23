@@ -10,12 +10,7 @@ def write_json_to_file(object: dict, path: str) -> bool:
     :return: True if the object was written successfully, False otherwise.
     """
     with open(path, "w") as f:
-        try:
-            json.dump(object, f)
-        except Exception:
-            return False
-        else:
-            return True
+        json.dump(object, f)
 
 
 def load_json_from_file(path: str) -> dict:

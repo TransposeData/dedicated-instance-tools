@@ -1,7 +1,36 @@
-.env
+# json
+*.json
+
+# vscode
+.vscode
+
+# env
 env
+env/*
+venv
+venv/*
+
+# build
+dist
+dist/*
+build
+transpose_data_test*
+transpose_data_test*/*
+*.egg-info
+setup.py
+
+# keys
+keys
+keys/*
+*.env
 
 # python
 __pycache__
+__pycache__/*
 .pytest_cache
 *.pyc
+
+# cov
+coverage.xml
+.coverage
+.coverage.*

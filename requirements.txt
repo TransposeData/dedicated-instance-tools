@@ -3,3 +3,4 @@ requests
 python-dotenv
 pre-commit
 python-dateutil
+pytest-cov

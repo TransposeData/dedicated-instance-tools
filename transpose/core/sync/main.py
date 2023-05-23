@@ -1,6 +1,7 @@
 import sys
 import time
 from datetime import datetime
+from decimal import Decimal
 from typing import Callable
 
 from transpose.common.constants import (
@@ -12,7 +13,7 @@ from transpose.common.exceptions import InvalidSyncTableError
 from transpose.util.io import load_json_from_file, write_json_to_file
 from transpose.util.log import get_logger
 from transpose.util.threading import TaskPool
-from transpose.util.time import estimate_eta
+from transpose.util.time import estimate_eta, to_iso
 
 
 class SyncClient:
@@ -23,12 +24,14 @@ class SyncClient:
 
     def run(
         self,
-        callable: Callable[[list[dict]], None],
+        callable: Callable[[list[dict]], bool],
         table: str,
         batch_size: int = 100_000,
     ) -> None:
         """
         Runs a sync operation on the given table, pulling all rows from the dedicated instance and passing them to the given callable.
+
+        If `callable` returns `False`, the sync operation will stop.
 
         :param callable: The callable to pass rows to. This callable should accept a list of rows as it's only argument.
         :param table: The table to sync.
@@ -36,17 +39,21 @@ class SyncClient:
         :param limit: The maximum number of rows to pull.
         """
 
+        # if metadata doesn't contain this table, add it
+        if table not in self.metadata:
+            self.metadata[table] = {}
+
         while True:
             try:
                 # pull a batch of rows
                 rows = self.__pull_batch(table, batch_size)
 
-                # if there are no rows, we're done
-                if not rows:
-                    break
-
                 # pass the rows to the given callable
-                callable(rows)
+                continue_operation = callable(rows)
+
+                # if the callable returns False, stop the sync operation
+                if continue_operation is False:
+                    break
             except KeyboardInterrupt:
                 sys.exit()
 
@@ -134,7 +141,11 @@ class SyncClient:
         )
 
         # get the highest block number from the rows
-        highest_block_number = max([row["__block_number"] for row in indexer_rows])
+        highest_block_number = (
+            max([row["__block_number"] for row in indexer_rows])
+            if len(indexer_rows) > 0
+            else 0
+        )
 
         # remove rows with the highest block number. this is to prevent duplicate rows from being pulled
         indexer_rows = [
@@ -142,11 +153,11 @@ class SyncClient:
         ]
 
         # now, update the progress
-        self.metadata["indexer_ids"][indexer_id] = highest_block_number
+        self.metadata[table]["indexer_ids"][indexer_id] = int(highest_block_number)
 
         self.logger.debug(
             "{} | Progress {}".format(
-                indexer_id, self.metadata["indexer_ids"][indexer_id]
+                indexer_id, self.metadata[table]["indexer_ids"][indexer_id]
             )
         )
 
@@ -166,7 +177,7 @@ class SyncClient:
 
         if classification == "transfer":
             # if the table is a transfer table, we can simply paginate by `activity_id`
-            offset = self.metadata.get(classification, 0)
+            offset = self.metadata.get(table, {}).get(classification, 0)
 
             # fetch the rows
             batch_process_begin_time = time.perf_counter()
@@ -175,8 +186,10 @@ class SyncClient:
             )
 
             # update the metadata
-            maximum_activity_id = max([row["activity_id"] for row in rows])
-            self.metadata[classification] = maximum_activity_id
+            maximum_activity_id = (
+                max([row["activity_id"] for row in rows]) if len(rows) > 0 else 0
+            )
+            self.metadata[table][classification] = int(maximum_activity_id)
 
             self.logger.info(
                 "{} | {:,.0f} Rows synced in {:.2f}s | Progress {}".format(
@@ -187,11 +200,11 @@ class SyncClient:
                 )
             )
 
-            return [dict(row) for row in rows]
+            return [self.__cast_row_values(dict(row)) for row in rows]
 
         elif classification == "owner":
             # if the table is a transfer table, we can simply paginate by `activity_id`
-            offset = self.metadata.get(classification, 0)
+            offset = self.metadata.get(table, {}).get(classification, 0)
 
             # fetch the rows
             batch_process_begin_time = time.perf_counter()
@@ -203,8 +216,10 @@ class SyncClient:
             )
 
             # update the metadata
-            maximum_activity_id = max([row["activity_id"] for row in rows])
-            self.metadata[classification] = maximum_activity_id
+            maximum_activity_id = (
+                max([row["activity_id"] for row in rows]) if len(rows) > 0 else 0
+            )
+            self.metadata[table][classification] = int(maximum_activity_id)
 
             self.logger.info(
                 "{} | {:,.0f} Rows synced in {:.2f}s | Progress {}".format(
@@ -215,36 +230,43 @@ class SyncClient:
                 )
             )
 
-            return [dict(row) for row in rows]
+            return [self.__cast_row_values(dict(row)) for row in rows]
 
         elif classification == "indexer":
             # get a list of indexer ids from the table. this is slow, so we only do it once every 100 batches
             if (
-                self.metadata.get("indexer_ids", None) is None
-                or self.metadata.get("batches_till_sync", 100) == 0
+                self.metadata.get(table, {}).get("indexer_ids", None) is None
+                or self.metadata.get(table, {}).get("batches_till_sync", 100) == 0
             ):
                 self.logger.info(f"Fetching new ({table}) indexers from postgres")
-                self.metadata["indexer_ids"] = {
-                    indexer_id: self.metadata.get("indexer_ids", {}).get(indexer_id, 0)
+                self.metadata[table]["indexer_ids"] = {
+                    indexer_id: self.metadata.get(table, {})
+                    .get("indexer_ids", {})
+                    .get(indexer_id, 0)
                     for indexer_id in self.__fetch_indexer_ids(table)
                 }
-                self.metadata["batches_till_sync"] = 100
+                self.metadata[table]["batches_till_sync"] = 100
 
             # decrement the batches till sync
-            self.metadata["batches_till_sync"] -= 1
+            self.metadata[table]["batches_till_sync"] -= 1
 
             # Create a multiprocessing pool
             batch_process_begin_time = time.perf_counter()
             begin_time = datetime.now()
             pool = TaskPool(
-                num_workers=min(32, len(self.metadata["indexer_ids"])), use_threads=True
+                num_workers=min(32, len(self.metadata[table]["indexer_ids"])),
+                use_threads=True,
             )
             targets = [
                 (table, batch_size, indexer_id, progress)
-                for indexer_id, progress in self.metadata["indexer_ids"].items()
+                for indexer_id, progress in self.metadata[table]["indexer_ids"].items()
             ]
             results = pool.run(self.__pull_indexer_batch, targets)
-            processed_rows = [dict(row) for result in results for row in result]
+            processed_rows = [
+                self.__cast_row_values(dict(row))
+                for result in results
+                for row in result
+            ]
 
             self.logger.info(
                 "{} | {:,.0f} Rows synced in {:.2f}s | Refreshing indexers in {}".format(
@@ -252,9 +274,31 @@ class SyncClient:
                     len(processed_rows),
                     time.perf_counter() - batch_process_begin_time,
                     estimate_eta(
-                        begin_time, 100 - self.metadata["batches_till_sync"], 100
+                        begin_time, 100 - self.metadata[table]["batches_till_sync"], 100
                     ),
                 )
             )
 
             return processed_rows
+
+    def __cast_row_values(self, row: dict) -> dict:
+        """
+        Cast the values in a PostgreSQL row to the correct Python type.
+
+        :param row: A dict containing the row values.
+        :return: A dict containing the casted row values.
+        """
+
+        casted_row = {}
+        for k, v in row.items():
+            if isinstance(v, Decimal):
+                if v.as_tuple().exponent == 0:
+                    casted_row[k] = int(v)
+                else:
+                    casted_row[k] = float(v)
+            elif isinstance(v, datetime):
+                casted_row[k] = to_iso(v)
+            else:
+                casted_row[k] = v
+
+        return casted_row

@@ -52,3 +52,21 @@ def test_sync_classification_owners():
 
     assert db.sync._classify_table("ethereum.native_token_owners") == "owner"
     assert db.sync._classify_table("ethereum.token_owners") == "owner"
+
+
+def test_sync_invalid():
+    db = DedicatedInstance(
+        host=db_host,
+        port=db_port,
+        user=db_username,
+        password=db_password,
+        database=db_name,
+        sslmode=db_sslmode,
+    )
+    assert isinstance(db, (DedicatedInstance,))
+
+    try:
+        db.sync._classify_table("ethereum.traces")
+        assert False
+    except:
+        assert True
