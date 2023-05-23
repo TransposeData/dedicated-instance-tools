@@ -21,7 +21,7 @@ def proccess_rows(rows: list[dict]) -> None:
     # do something with the rows
     # ...
     for row in rows:
-        print(row)
+        print(row["transaction_hash"])
 
     # you can return False to stop the sync
     return True

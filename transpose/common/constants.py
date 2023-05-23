@@ -7,22 +7,9 @@ TRANSFER_TABLE_PAGINATED_QUERY = """
 """
 
 OWNER_TABLE_PAGINATED_QUERY = """
-WITH transfers AS (
-    SELECT from_address, to_address, activity_id
-    FROM {}
-    WHERE activity_id > %s
-    ORDER BY activity_id ASC
-    LIMIT %s
-)
-
-SELECT
-    DISTINCT(owners.*),
-    (SELECT MAX(transfers.activity_id)) AS activity_id
+SELECT *
 FROM {} AS owners
-JOIN transfers
-ON owners.owner_address = transfers.from_address
-OR owners.owner_address = transfers.to_address
-GROUP BY 1, owners.owner_address;
+WHERE owner_address = ANY(%s)
 """
 
 INDEXER_TABLE_PAGINATED_QUERY = """

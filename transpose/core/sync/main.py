@@ -205,20 +205,34 @@ class SyncClient:
             # if the table is a transfer table, we can simply paginate by `activity_id`
             offset = self.metadata.get(table, {}).get(classification, 0)
 
-            # fetch the rows
+            # fetch the transfer rows
             batch_process_begin_time = time.perf_counter()
-            rows = self.super._execute(
-                OWNER_TABLE_PAGINATED_QUERY.format(
-                    table.replace("_owners", "_transfers"), table
+            transfer_rows = self.super._execute(
+                TRANSFER_TABLE_PAGINATED_QUERY.format(
+                    table.replace("_owners", "_transfers")
                 ),
                 (offset, batch_size),
             )
 
             # update the metadata
             maximum_activity_id = (
-                max([row["activity_id"] for row in rows]) if len(rows) > 0 else 0
+                max([row["activity_id"] for row in transfer_rows])
+                if len(transfer_rows) > 0
+                else 0
             )
             self.metadata[table][classification] = int(maximum_activity_id)
+
+            # get a list of owner addresses from the transfer rows
+            owner_addresses = list(
+                set(
+                    [row["from_address"] for row in transfer_rows]
+                    + [row["to_address"] for row in transfer_rows]
+                )
+            )
+
+            rows = self.super._execute(
+                OWNER_TABLE_PAGINATED_QUERY.format(table), (owner_addresses,)
+            )
 
             self.logger.info(
                 "{} | {:,.0f} Rows synced in {:.2f}s | Progress {}".format(
