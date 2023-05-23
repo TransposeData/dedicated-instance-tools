@@ -7,7 +7,7 @@ setup(
     name="transpose_dit",
     # version compliant with PEP440
     # https://peps.python.org/pep-0440/
-    version="0.1.0",
+    version="0.1.1",
     # project meta
     long_description=long_description,
     long_description_content_type="text/markdown",
