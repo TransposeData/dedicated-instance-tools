@@ -23,7 +23,9 @@ class DedicatedInstance:
 
         # connect to the database
         try:
-            db = psycopg2.connect(
+            pool = psycopg2.pool.ThreadedConnectionPool(
+                1,
+                20,
                 host=host,
                 port=port,
                 user=user,
@@ -38,7 +40,7 @@ class DedicatedInstance:
         self.logger = logging.getLogger(__name__)
 
         # update classes
-        self.db = db
+        self.__pool = pool
         self.sync = SyncClient(self)
 
     def _execute(self, query: str, args: tuple = ()) -> list[dict]:
@@ -50,9 +52,12 @@ class DedicatedInstance:
         """
 
         try:
-            with self.db.cursor(cursor_factory=RealDictCursor) as cursor:
+            db = self.__pool.getconn()
+            with db.cursor(cursor_factory=RealDictCursor) as cursor:
                 cursor.execute(query, args)
-                return cursor.fetchall()
+                response = cursor.fetchall()
+            self.__pool.putconn(db)
+            return response
         except KeyboardInterrupt:
             sys.exit()
 
