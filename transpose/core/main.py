@@ -1,7 +1,7 @@
 import logging
 import sys
 
-import psycopg2
+from psycopg2 import pool as psycopg2_pool
 from psycopg2.extras import RealDictCursor
 
 from transpose.common.exceptions import InstanceConnectionError
@@ -23,7 +23,7 @@ class DedicatedInstance:
 
         # connect to the database
         try:
-            pool = psycopg2.pool.ThreadedConnectionPool(
+            pool = psycopg2_pool.ThreadedConnectionPool(
                 1,
                 20,
                 host=host,
