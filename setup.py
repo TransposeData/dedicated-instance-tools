@@ -4,7 +4,7 @@ with open("README.md", "r") as f:
     long_description = f.read()
 
 setup(
-    name="transpose_dedicated_instance_tooling",
+    name="transpose_dit",
     # version compliant with PEP440
     # https://peps.python.org/pep-0440/
     version="0.1.0",

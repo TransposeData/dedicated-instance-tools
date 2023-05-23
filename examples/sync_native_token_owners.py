@@ -2,10 +2,9 @@ import os
 
 from dotenv import load_dotenv
 
-from transpose.core.main import DedicatedInstance
+from transpose import DedicatedInstance
 
 load_dotenv()
-
 db = DedicatedInstance(
     host=os.environ.get("HOST"),
     port=os.environ.get("PORT"),
@@ -13,16 +12,19 @@ db = DedicatedInstance(
     password=os.environ.get("PASSWORD"),
     database=os.environ.get("DATABASE"),
     sslmode=os.environ.get("SSLMODE"),
-    debug=False,
+    debug=True,
 )
 
 
 def proccess_rows(rows: list[dict]) -> None:
-    # just print the rows
-    # print(rows)
-    return False
+
+    # do something with the rows
+    # ...
+    for row in rows:
+        print(row)
+
+    # you can return False to stop the sync
+    return True
 
 
-db.sync.run(proccess_rows, "ethereum.nft_sales", 10_000)
-
-db.sync.save_metadata()
+db.sync.run(proccess_rows, "ethereum.native_token_owners", 1_000)
