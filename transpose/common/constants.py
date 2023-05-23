@@ -7,18 +7,22 @@ TRANSFER_TABLE_PAGINATED_QUERY = """
 """
 
 OWNER_TABLE_PAGINATED_QUERY = """
-SELECT DISTINCT(owners.*), transfers.activity_id
-FROM {} AS owners
-JOIN (
+WITH transfers AS (
     SELECT from_address, to_address, activity_id
     FROM {}
     WHERE activity_id > %s
     ORDER BY activity_id ASC
     LIMIT %s
-) AS transfers
-ON owners.owner_address = transfers.from_address
-OR owners.owner_address = transfers.to_address;
+)
 
+SELECT
+    DISTINCT(owners.*),
+    (SELECT MAX(transfers.activity_id)) AS activity_id
+FROM {} AS owners
+JOIN transfers
+ON owners.owner_address = transfers.from_address
+OR owners.owner_address = transfers.to_address
+GROUP BY owners.owner_address;
 """
 
 INDEXER_TABLE_PAGINATED_QUERY = """

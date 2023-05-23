@@ -209,7 +209,7 @@ class SyncClient:
             batch_process_begin_time = time.perf_counter()
             rows = self.super._execute(
                 OWNER_TABLE_PAGINATED_QUERY.format(
-                    table, table.replace("_owners", "_transfers")
+                    table.replace("_owners", "_transfers"), table
                 ),
                 (offset, batch_size),
             )
